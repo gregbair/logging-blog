@@ -1,4 +1,6 @@
-﻿using System.Reflection;using BenchmarkDotNet.Attributes;
+﻿using System;
+using System.IO;
+using System.Reflection;using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using log4net;
 using log4net.Config;
@@ -11,14 +13,19 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 using LogLevel = NLog.LogLevel;
 using NLogManager = NLog.LogManager;
 
-var defaultOut = Console.Out;
-Console.SetOut(TextWriter.Null);
-BenchmarkRunner.Run<ConsoleLogBenchmark>();
+RunBenchmarks();
 
-log4net.LogManager.ResetConfiguration();
-Console.SetOut(defaultOut);
+void RunBenchmarks()
+{
+    var defaultOut = Console.Out;
+    Console.SetOut(TextWriter.Null);
+    BenchmarkRunner.Run<ConsoleLogBenchmark>();
 
-BenchmarkRunner.Run<FileLogBenchmark>();
+    log4net.LogManager.ResetConfiguration();
+    Console.SetOut(defaultOut);
+
+    BenchmarkRunner.Run<FileLogBenchmark>();
+}
 
 public class ConsoleLogBenchmark
 {
@@ -39,8 +46,8 @@ public class ConsoleLogBenchmark
         var nLogConfig = new NLog.Config.LoggingConfiguration();
         var console = new NLog.Targets.ConsoleTarget();
         nLogConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, console);
-        NLogManager.Configuration = nLogConfig;
-        _nlogLogger = NLogManager.GetLogger(nameof(ConsoleLogBenchmark));
+        var factory = new LogFactory(nLogConfig);
+        _nlogLogger = factory.GetLogger(nameof(ConsoleLogBenchmark));
 
         // set up Serilog
         _serilogLogger = new LoggerConfiguration()
@@ -89,10 +96,10 @@ public class FileLogBenchmark
 
         // set up NLog
         var nLogConfig = new NLog.Config.LoggingConfiguration();
-        var console = new NLog.Targets.FileTarget() { FileName = Path.Combine(baseLogDir, "nlog.log") };
-        nLogConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, console);
-        NLogManager.Configuration = nLogConfig;
-        _nlogLogger = NLogManager.GetLogger(nameof(ConsoleLogBenchmark));
+        var fileTarget = new NLog.Targets.FileTarget() { FileName = Path.Combine(baseLogDir, "nlog.log"), KeepFileOpen = true, ConcurrentWrites = false};
+        nLogConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, fileTarget);
+        var factory = new LogFactory(nLogConfig);
+        _nlogLogger = factory.GetLogger(nameof(ConsoleLogBenchmark));
 
         // set up Serilog
         _serilogLogger = new LoggerConfiguration()
